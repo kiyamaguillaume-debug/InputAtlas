@@ -1,0 +1,21 @@
+using System;using System.Linq;using System.Collections.Generic;using System.Windows;using System.Windows.Controls;using System.Windows.Data;
+namespace InputAtlas {
+sealed class NetworkSourceChoice {public string Id{get;set;}public string Label{get;set;}public override string ToString(){return Label;}}
+public partial class MainWindow {
+ string networkSourceId="all";
+ static bool IsNetworkMetric(string metric){return metric=="download_bytes"||metric=="upload_bytes";}
+ string SourceId(){return networkSourceId=="all"||data==null||!data.TrafficSources.Any(r=>Convert.ToString(r["id"])==networkSourceId&&Convert.ToString(r["kind"])!="unknown")?"all":networkSourceId;}
+ string SourceLabel(string id){if(id=="all")return T("All networks","全部网络");var source=data.TrafficSources.FirstOrDefault(r=>Convert.ToString(r["id"])==id);return source==null?id:Convert.ToString(source["name"]);}
+ List<Record> TrafficRows(bool allDates){var end=to.SelectedDate.Value.Date;var rows=SourceId()=="all"?(allDates?data.AllDaily:data.Daily):data.SourceDaily.Where(r=>r.App==SourceId()).ToList();return rows.Where(r=>r.Day<=end&&(allDates||r.Day>=from.SelectedDate.Value.Date)).ToList();}
+ List<Record> TrafficSummaryRows(){return TrafficRows(true).Where(r=>r.Day>=Store.Period(to.SelectedDate.Value,mode.SelectedIndex)).ToList();}
+ double TrafficTotal(string metric){return TrafficSummaryRows().Sum(r=>r.Get(metric));}
+ List<Record> TrafficPeriods(bool ten=false){int m=mode.SelectedIndex;var rows=TrafficRows(m==4);DateTime start=m==4&&rows.Count>0?rows.Min(r=>r.Day):from.SelectedDate.Value.Date;var result=Store.Group(rows,m,start,to.SelectedDate.Value);if(m==0&&ten&&result.Count>10)result=result.Skip(result.Count-10).ToList();return result;}
+ void NetworkSourcePicker(){
+  page.Children.Add(Txt(T("Network source · Preview","网络来源 · 预览功能"),12));var items=new List<NetworkSourceChoice>{new NetworkSourceChoice{Id="all",Label=T("All networks","全部网络")}};items.AddRange(data.TrafficSources.Where(r=>Convert.ToString(r["kind"])!="unknown").Select(r=>new NetworkSourceChoice{Id=Convert.ToString(r["id"]),Label=SourceLabel(Convert.ToString(r["id"]))}));
+  var picker=new ComboBox{ItemsSource=items,DisplayMemberPath="Label",SelectedValuePath="Id",SelectedValue=SourceId(),MinWidth=270,MaxWidth=540,HorizontalAlignment=HorizontalAlignment.Left,Margin=new Thickness(0,0,0,10)};picker.SelectionChanged+=(s,e)=>{if(e.AddedItems.Count!=1||picker.Parent!=page)return;string selected=((NetworkSourceChoice)e.AddedItems[0]).Id;if(selected==networkSourceId)return;networkSourceId=selected;SaveSettings();Render();if(networkSourceId=="all")StartNetwork(false);};page.Children.Add(picker);
+  if(data.CurrentNetwork!="")AddNote("Current network: "+data.CurrentNetwork,"当前网络："+data.CurrentNetwork);
+  AddNote("New Wi-Fi networks are added automatically by name. Network switching will be checked on your next connection.","按 Wi-Fi 名称自动添加新来源，切换网络后的实际效果待下次连接时核对。");
+  if(data.NetworkSourceError!="")AddNote("Network naming is temporarily unavailable. Traffic with an unidentified source is discarded.","网络名称暂时读取不到，无法确认来源的流量直接舍弃。");
+ }
+ void NetworkSourceBreakdown(){if(SourceId()!="all"||data.SourceDaily.Count==0)return;DateTime end=to.SelectedDate.Value.Date,start=Store.Period(end,mode.SelectedIndex);var rows=data.SourceDaily.Where(r=>r.Day>=start&&r.Day<=end).GroupBy(r=>r.App).OrderByDescending(g=>g.Sum(r=>r.Get("download_bytes")+r.Get("upload_bytes"))).Select(g=>new{Network=SourceLabel(g.Key),Download=Plot.Format(g.Sum(r=>r.Get("download_bytes")),"bytes"),Upload=Plot.Format(g.Sum(r=>r.Get("upload_bytes")),"bytes")}).ToList();Heading("Traffic by network","各网络来源流量");var table=new DataGrid{ItemsSource=rows,AutoGenerateColumns=false,IsReadOnly=true,CanUserAddRows=false,HeadersVisibility=DataGridHeadersVisibility.Column,GridLinesVisibility=DataGridGridLinesVisibility.Horizontal,MinHeight=65,MaxHeight=230,Margin=new Thickness(0,0,0,12)};table.Columns.Add(new DataGridTextColumn{Header=T("Network","网络来源"),Binding=new Binding("Network"),MinWidth=200,Width=new DataGridLength(1,DataGridLengthUnitType.Star)});table.Columns.Add(new DataGridTextColumn{Header=Name("download_bytes"),Binding=new Binding("Download"),Width=160});table.Columns.Add(new DataGridTextColumn{Header=Name("upload_bytes"),Binding=new Binding("Upload"),Width=160});page.Children.Add(table);}
+}}
