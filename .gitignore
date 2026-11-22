@@ -1,0 +1,32 @@
+# Build and isolated test output
+/artifacts/
+/bin/
+/obj/
+/.vs/
+*.user
+*.suo
+
+# Local profiles and recordings
+/data/
+/network-cache/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.log
+*.tmp
+*.bak
+*.stop
+*.paused
+*.flag
+*heartbeat*.json
+*settings*.json
+*identities*.json
+*identity*.json
+self-test.json
+*.request
+portable.mode
+
+# Packaged output
+*.zip
+SHA256SUMS.txt
